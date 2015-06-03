@@ -75,12 +75,14 @@ describe('Player', function() {
     eventManager = new shaka.util.EventManager();
   });
 
-  afterEach(function() {
+  afterEach(function(done) {
     eventManager.destroy();
     eventManager = null;
 
-    player.destroy();
-    player = null;
+    player.destroy().then(function() {
+      player = null;
+      done();
+    });
   });
 
   afterAll(function() {
@@ -99,12 +101,12 @@ describe('Player', function() {
     it('can be used multiple times without EME', function(done) {
       player.load(newSource(plainManifest)).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         return player.load(newSource(plainManifest));
       }).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         expect(video.currentTime).toBeGreaterThan(0.0);
         done();
@@ -119,12 +121,12 @@ describe('Player', function() {
     it('can be used multiple times with EME', function(done) {
       player.load(newSource(encryptedManifest)).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         return player.load(newSource(encryptedManifest));
       }).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         expect(video.currentTime).toBeGreaterThan(0.0);
         done();
@@ -142,7 +144,7 @@ describe('Player', function() {
         player.selectVideoTrack(track.id);
         video.play();
         // adapts by the time it crosses a segment boundary.
-        return waitForTargetTime(6.0, 10.0);
+        return waitForTargetTime(video, eventManager, 6.0, 10.0);
       }).then(function() {
         expect(video.videoHeight).toEqual(720);
         done();
@@ -158,14 +160,14 @@ describe('Player', function() {
         player.selectVideoTrack(track.id);
         video.play();
         // adapts by the time it crosses a segment boundary.
-        return waitForTargetTime(6.0, 10.0);
+        return waitForTargetTime(video, eventManager, 6.0, 10.0);
       }).then(function() {
         expect(video.videoHeight).toEqual(720);
 
         var track = getVideoTrackByHeight(360);
         player.selectVideoTrack(track.id);
         // adapts by the time it crosses a segment boundary.
-        return waitForTargetTime(11.0, 10.0);
+        return waitForTargetTime(video, eventManager, 11.0, 10.0);
       }).then(function() {
         expect(video.videoHeight).toEqual(360);
         done();
@@ -183,7 +185,8 @@ describe('Player', function() {
     it('does not lock up on segment boundaries', function(done) {
       player.load(newSource(plainManifest)).then(function() {
         video.play();
-        return waitForMovement();  // gets the player out of INIT state
+        // gets the player out of INIT state
+        return waitForMovement(video, eventManager);
       }).then(function() {
         video.currentTime = 40.0;  // <0.1s before end of segment N (5).
         return delay(2.0);
@@ -218,10 +221,10 @@ describe('Player', function() {
     it('does not create unclosable gaps in the buffer', function(done) {
       player.load(newSource(plainManifest)).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         video.currentTime = 33.0;
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         return delay(1.0);
       }).then(function() {
@@ -231,7 +234,7 @@ describe('Player', function() {
         // When this bug manifests, the playhead typically gets stuck around
         // 32.9, so we expect that 35.0 is a safe indication that the bug is
         // not manifesting.
-        return waitForTargetTime(35.0, 10.0);
+        return waitForTargetTime(video, eventManager, 35.0, 10.0);
       }).then(function() {
         done();
       }).catch(function(error) {
@@ -278,7 +281,7 @@ describe('Player', function() {
         // The content is now buffered.
         expect(audioStreamBuffer.buffered.length).toBe(1);
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         // Power through and consume the audio data quickly.
         player.setPlaybackRate(8);
@@ -290,7 +293,7 @@ describe('Player', function() {
         // Seek to the beginning, which is data we will have to re-download.
         video.currentTime = 0;
         // Expect to play some.
-        return waitForTargetTime(0.5, 2.0);
+        return waitForTargetTime(video, eventManager, 0.5, 2.0);
       }).then(function() {
         done();
       }).catch(function(error) {
@@ -307,27 +310,27 @@ describe('Player', function() {
 
       player.load(source).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         // Move quickly past the first two segments.
         player.setPlaybackRate(3.0);
-        return waitForTargetTime(11.0, 6.0);
+        return waitForTargetTime(video, eventManager, 11.0, 6.0);
       }).then(function() {
         var track = getVideoTrackByHeight(480);
         expect(track.active).toBe(false);
         var ok = player.selectVideoTrack(track.id, false);
         expect(ok).toBe(true);
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         // This bug manifests within two segments of the adaptation point.  To
         // prove that we are not hung, we need to get to a point two segments
         // later than where we adapted.
-        return waitForTargetTime(22.0, 6.0);
+        return waitForTargetTime(video, eventManager, 22.0, 6.0);
       }).then(function() {
         video.currentTime = 0;
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
-        return waitForTargetTime(21.0, 12.0);
+        return waitForTargetTime(video, eventManager, 21.0, 12.0);
       }).then(function() {
         done();
       }).catch(function(error) {
@@ -341,7 +344,7 @@ describe('Player', function() {
 
       player.load(source).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         var Stream = shaka.media.Stream;
         var videoStream = source.streamsByType_['video'];
@@ -353,7 +356,7 @@ describe('Player', function() {
         expect(videoStream.state_).toBe(Stream.State_.SWITCHING);
 
         video.currentTime = 30.0;
-        return waitForTargetTime(33.0, 5.0);
+        return waitForTargetTime(video, eventManager, 33.0, 5.0);
       }).then(function() {
         done();
       }).catch(function(error) {
@@ -369,7 +372,7 @@ describe('Player', function() {
 
       player.load(source).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         video.addEventListener('seeking', onSeeking);
         video.currentTime += 0;
@@ -476,7 +479,7 @@ describe('Player', function() {
       var timestamp;
       player.load(newSource(plainManifest)).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         expect(video.currentTime).toBeGreaterThan(0.0);
         timestamp = video.currentTime;
@@ -496,11 +499,11 @@ describe('Player', function() {
       var timestamp;
       player.load(newSource(plainManifest)).then(function() {
         video.play();
-        return waitForTargetTime(3.0, 5.0);
+        return waitForTargetTime(video, eventManager, 3.0, 5.0);
       }).then(function() {
         timestamp = video.currentTime;
         player.setPlaybackRate(-1.0);
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         return delay(2.0);
       }).then(function() {
@@ -518,7 +521,7 @@ describe('Player', function() {
       var oldPlayTime;
       player.load(newSource(plainManifest)).then(function() {
         video.play();
-        return waitForMovement();
+        return waitForMovement(video, eventManager);
       }).then(function() {
         oldPlayTime = player.getStats().playTime;
         return delay(1.0);
@@ -731,7 +734,7 @@ describe('Player', function() {
   it('plays VP9 WebM', function(done) {
     player.load(newSource(webmManifest)).then(function() {
       video.play();
-      return waitForMovement();
+      return waitForMovement(video, eventManager);
     }).then(function() {
       expect(video.currentTime).toBeGreaterThan(0.0);
       done();
@@ -759,7 +762,7 @@ describe('Player', function() {
     video.autoplay = true;
 
     player.load(newSource(plainManifest)).then(function() {
-      return waitForMovement();
+      return waitForMovement(video, eventManager);
     }).then(function() {
       expect(video.currentTime).toBeGreaterThan(0.0);
       expect(video.paused).toBe(false);
@@ -787,26 +790,6 @@ describe('Player', function() {
 
   // TODO(story 1970528): add tests which exercise PSSH parsing,
   // SegmentTemplate resolution, and SegmentList generation.
-
-  /**
-   * @param {!Event} event
-   */
-  function convertErrorToTestFailure(event) {
-    // Treat all player errors as test failures.
-    var error = event.detail;
-    fail(error);
-  }
-
-  /**
-   * @param {string} manifest
-   * @return {!shaka.player.DashVideoSource}
-   */
-  function newSource(manifest) {
-    var estimator = new shaka.util.EWMABandwidthEstimator();
-    return new shaka.player.DashVideoSource(manifest,
-                                            interpretContentProtection,
-                                            estimator);
-  }
 
   /**
    * @param {number} targetHeight
@@ -847,56 +830,6 @@ describe('Player', function() {
       }
     }
     return null;
-  }
-
-  /**
-   * @return {!Promise} resolved when the video's currentTime changes.
-   */
-  function waitForMovement() {
-    var promise = new shaka.util.PublicPromise;
-    var originalTime = video.currentTime;
-    eventManager.listen(video, 'timeupdate', function() {
-      if (video.currentTime != originalTime) {
-        eventManager.unlisten(video, 'timeupdate');
-        promise.resolve();
-      }
-    });
-    return promise;
-  }
-
-  /**
-   * @param {number} targetTime in seconds
-   * @param {number} timeout in seconds
-   * @return {!Promise} resolved when the video's currentTime >= |targetTime|.
-   */
-  function waitForTargetTime(targetTime, timeout) {
-    var promise = new shaka.util.PublicPromise;
-    var stack = (new Error('stacktrace')).stack.split('\n').slice(1).join('\n');
-
-    var timeoutId = window.setTimeout(function() {
-      // This expectation will fail, but will provide specific values to
-      // Jasmine to help us debug timeout issues.
-      expect(video.currentTime).toBeGreaterThan(targetTime);
-      eventManager.unlisten(video, 'timeupdate');
-      // Reject the promise, but replace the error's stack with the original
-      // call stack.  This timeout handler's stack is not helpful.
-      var error = new Error('Timeout waiting for video time ' + targetTime);
-      error.stack = stack;
-      promise.reject(error);
-    }, timeout * 1000);
-
-    eventManager.listen(video, 'timeupdate', function() {
-      if (video.currentTime > targetTime) {
-        // This expectation will pass, but will keep Jasmine from complaining
-        // about tests which have no expectations.  In practice, some tests
-        // only need to demonstrate that they have reached a certain target.
-        expect(video.currentTime).toBeGreaterThan(targetTime);
-        eventManager.unlisten(video, 'timeupdate');
-        window.clearTimeout(timeoutId);
-        promise.resolve();
-      }
-    });
-    return promise;
   }
 });
 

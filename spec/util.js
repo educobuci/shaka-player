@@ -18,6 +18,8 @@
 
 goog.require('shaka.asserts');
 goog.require('shaka.media.SegmentReference');
+goog.require('shaka.player.IVideoSource');
+goog.require('shaka.util.EventManager');
 goog.require('shaka.util.PublicPromise');
 goog.require('shaka.util.StringUtils');
 goog.require('shaka.util.Uint8ArrayUtils');
@@ -276,3 +278,82 @@ function checkReference(reference, url, start, end) {
   expect(reference.endTime).toBe(end);
 }
 
+
+/**
+ * Waits for a video time to increase.
+ * @param {!HTMLMediaElement} video The playing video.
+ * @param {!shaka.util.EventManager} eventManager
+ * @return {!Promise} resolved when the video's currentTime changes.
+ */
+function waitForMovement(video, eventManager) {
+  var promise = new shaka.util.PublicPromise;
+  var originalTime = video.currentTime;
+  eventManager.listen(video, 'timeupdate', function() {
+    if (video.currentTime != originalTime) {
+      eventManager.unlisten(video, 'timeupdate');
+      promise.resolve();
+    }
+  });
+  return promise;
+}
+
+
+/**
+ * @param {!HTMLMediaElement} video The playing video.
+ * @param {!shaka.util.EventManager} eventManager
+ * @param {number} targetTime in seconds
+ * @param {number} timeout in seconds
+ * @return {!Promise} resolved when the video's currentTime >= |targetTime|.
+ */
+function waitForTargetTime(video, eventManager, targetTime, timeout) {
+  var promise = new shaka.util.PublicPromise;
+  var stack = (new Error('stacktrace')).stack.split('\n').slice(1).join('\n');
+
+  var timeoutId = window.setTimeout(function() {
+    // This expectation will fail, but will provide specific values to
+    // Jasmine to help us debug timeout issues.
+    expect(video.currentTime).toBeGreaterThan(targetTime);
+    eventManager.unlisten(video, 'timeupdate');
+    // Reject the promise, but replace the error's stack with the original
+    // call stack.  This timeout handler's stack is not helpful.
+    var error = new Error('Timeout waiting for video time ' + targetTime);
+    error.stack = stack;
+    promise.reject(error);
+  }, timeout * 1000);
+
+  eventManager.listen(video, 'timeupdate', function() {
+    if (video.currentTime > targetTime) {
+      // This expectation will pass, but will keep Jasmine from complaining
+      // about tests which have no expectations.  In practice, some tests
+      // only need to demonstrate that they have reached a certain target.
+      expect(video.currentTime).toBeGreaterThan(targetTime);
+      eventManager.unlisten(video, 'timeupdate');
+      window.clearTimeout(timeoutId);
+      promise.resolve();
+    }
+  });
+  return promise;
+}
+
+
+/**
+ * Creates a new DashVideoSource out of the manifest.
+ * @param {string} manifest
+ * @return {!shaka.player.DashVideoSource}
+ */
+function newSource(manifest) {
+  var estimator = new shaka.util.EWMABandwidthEstimator();
+  return new shaka.player.DashVideoSource(manifest,
+                                          interpretContentProtection,
+                                          estimator);
+}
+
+
+/**
+ * @param {!Event} event
+ */
+function convertErrorToTestFailure(event) {
+  // Treat all player errors as test failures.
+  var error = event.detail;
+  fail(error);
+}
