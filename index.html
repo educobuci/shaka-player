@@ -98,7 +98,7 @@
       <tr class="dash">
         <td>Custom manifest URL:</td>
         <td>
-          <input id="manifestUrlInput" type="text" style="width: 98%;" oninput="app.onMpdCustom()">
+          <input id="manifestUrlInput" value="http://b36083.cdn.telefonica.com/36083/BRA_PR_SUBSD_US_169__8835a1515d34454a20150521013333.ism/Manifest" type="text" style="width: 98%;" oninput="app.onMpdCustom()">
         </td>
         <td>
           <button id="storeButton" onclick="app.storeStream();">Store stream offline</button>
@@ -110,7 +110,7 @@
           <span title="If specified, overrides interpretation of ContentProtection elements in the manifest. Implies the use of Widevine.">[?]</span>
         </td>
         <td colspan="2">
-          <input id="wvLicenseServerUrlInput" type="text" style="width: 98%;">
+          <input id="wvLicenseServerUrlInput" value="http://localhost:8080/proxy" type="text" style="width: 98%;">
         </td>
       </tr>
 
